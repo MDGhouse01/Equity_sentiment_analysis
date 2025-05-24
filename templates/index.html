@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Information</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Londrina+Sketch&display=swap');
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            padding-top: 30px;
+            padding-bottom: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-image: url('/static/img/stock.jpg');
+            background-size: cover;
+            background-position: center;        
+            
+
+
+        }
+
+        .container {
+            padding-top: 40px;
+            /* More transparent white background */
+            padding: 20px;
+            border-radius: 12px; /* Slightly rounded corners */
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2); /* Slightly darker shadow for depth */
+            max-width: 1000px;
+            width: 100%;
+            min-height: 680px;
+            text-align: center;
+            backdrop-filter: blur(5px); /* Increased blur effect */
+            border: 1px solid rgba(255, 255, 255, 0.3); /* Subtle white border */
+        }
+        
+        
+        
+
+        h1 {
+            margin-bottom: 20px;
+            font-size: 3em;
+            color: #ffffff; /* White text for better contrast */
+            font-family: "Londrina Sketch", sans-serif;
+        }
+
+        input[type="text"] {
+            width: 80%;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            border: 1px solid #ffffff;
+            font-size: 16px;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            background-color: rgba(0, 123, 255, 0.3); /* Transparent blue background */
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            backdrop-filter: blur(10px); /* Blur effect for glassy appearance */
+            border: 1px solid rgba(255, 255, 255, 0.3); /* Subtle white border */
+            transition: background-color 0.3s ease; /* Smooth transition */
+        }
+        
+        button:hover {
+            background-color: rgba(0, 123, 255, 0.5); /* Darker on hover */
+        }
+
+        .stock-info {
+            margin-top: 20px;
+            text-align: left;
+            color: #ffffff;
+        }
+
+        .stock-info div {
+            margin: 5px 0;
+        }
+
+        .error {
+            color: red;
+            margin-top: 20px;
+        }
+
+        .chart-container {
+            width: 100%;
+            margin-top: 40px;
+        }
+
+        #sentimentButton {
+            display: none; /* Initially hidden */
+            margin-top: 20px;
+        }
+
+    </style>
+</head>
+<body >
+    
+    <div class="container" >
+        <h1>Stock Information</h1>
+       
+
+
+        <input type="text" id="symbol" placeholder="Enter Stock Symbol">
+        <button onclick="getStockInfo()">Get Info</button>
+        <div id="stock-info" class="stock-info"></div>
+        <div id="error" class="error"></div>
+        
+        <!-- Chart container -->
+        <div class="chart-container">
+            <canvas id="stockChart"></canvas>
+        </div>
+        
+        <!-- Sentiment Analysis Button -->
+        <button id="sentimentButton" onclick="goToSentimentAnalysis()">Sentiment Analysis</button>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            getRandomStocks();
+        });
+
+        function getStockInfo() {
+            const symbol = document.getElementById('symbol').value;
+            fetch(`/get_stock_info?symbol=${symbol}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        document.getElementById('stock-info').innerHTML = '';
+                        document.getElementById('error').innerText = data.error;
+                        document.getElementById('sentimentButton').style.display = 'none'; // Hide button on error
+                    } else {
+                        document.getElementById('error').innerText = '';
+                        document.getElementById('stock-info').innerHTML = `
+                            <div><strong>Symbol:</strong> ${data.symbol}</div>
+                            <div><strong>Price:</strong> $${data.price}</div>
+                            <div><strong>Open:</strong> $${data.open}</div>
+                            <div><strong>High:</strong> $${data.high}</div>
+                            <div><strong>Low:</strong> $${data.low}</div>
+                            <div><strong>Previous Close:</strong> $${data.prevClose}</div>
+                        `;
+                        document.getElementById('sentimentButton').style.display = 'inline-block'; // Show button on success
+    
+                        // Update the sentiment analysis button to use the current stock symbol
+                        document.getElementById('sentimentButton').onclick = () => {
+                            goToSentimentAnalysis(symbol); // Pass the symbol to sentiment analysis
+                        };
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('error').innerText = 'An error occurred while fetching data';
+                    document.getElementById('sentimentButton').style.display = 'none'; // Hide button on error
+                });
+        }
+    
+        function goToSentimentAnalysis(symbol) {
+            window.location.href = `/sentiment_analysis/${symbol}`;
+        }
+
+        function getRandomStocks() {
+            const symbols = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'NFLX', 'NVDA', 'DIS', 'BABA'];
+            const promises = symbols.map(symbol => fetch(`/get_stock_info?symbol=${symbol}`).then(res => res.json()));
+            
+            Promise.all(promises).then(results => {
+                const labels = [];
+                const prices = [];
+                const colors = [];
+                
+                results.forEach(data => {
+                    if (!data.error) {
+                        labels.push(data.symbol);
+                        prices.push(data.price);
+
+                        // Determine the color based on price increase or decrease
+                        const color = data.price >= data.prevClose ? 'rgba(0, 200, 0, 0.6)' : 'rgba(255, 0, 0, 0.6)';
+                        colors.push(color);
+                    }
+                });
+                
+                renderChart(labels, prices, colors);
+            });
+        }
+
+        function renderChart(labels, prices, colors) {
+            const ctx = document.getElementById('stockChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Stock Prices',
+                        data: prices,
+                        backgroundColor: colors,
+                        borderColor: colors.map(color => color.replace('0.6', '1')),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

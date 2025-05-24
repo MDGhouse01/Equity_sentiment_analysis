@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twitter Sentiment Analysis</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Londrina+Sketch&display=swap');
+        
+        body {
+            background-color: #f4f4f4; /* Light grey background */
+            color: #000; /* Black text */
+            font-family: 'Courier New', monospace;
+            height: 100vh;
+            display: flex;
+            background-image: url('/static/img/stock.jpg');
+            background-size: cover;
+            background-position: center;
+        }
+
+        #gaugeContainer {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            width: 50%; /* Half width for gauge */
+            padding: 20px;
+        }
+
+        #tweetsContainer {
+            width: 50%; /* Half width for tweets */
+            padding: 20px;
+            height: 500px;
+            position: relative; /* Required for absolute positioning */
+            border: 2px solid #71b3bc; /* Border for tweets section */
+            border-radius: 10px; /* Rounded corners */
+            margin-top: 180px;
+            overflow: hidden; /* Hide overflow */
+            backdrop-filter: blur(5px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        #tweets {
+            position: absolute; /* Position tweets absolutely */
+            white-space: nowrap; /* Prevent line breaks */
+            color: aquamarine;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 3em;
+            color: #ffffff; /* White text for better contrast */
+            font-family: "Londrina Sketch", sans-serif;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3); /* Text shadow for depth */
+        }
+
+        h2 {
+            text-align: center;
+            font-size: 1.5em;
+            color: #ffffff; /* White text */
+            margin: 10px 0; /* Margin for spacing */
+            padding-top: 20px; /* Added padding to separate from previous content */
+        }
+
+        #header {
+            backdrop-filter: blur(5px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2); 
+            width: 100%; /* Full width for header */
+            position: fixed; /* Fixed position at the top */
+            top: 0;
+            left: 0;
+            z-index: 0; /* On top of other elements */
+        }
+
+        @keyframes scroll {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(-50%); } /* Move up by 50% to cover the duplicated tweets */
+        }
+
+        canvas {
+            margin-bottom: 20px;
+            border-radius: 15px; /* Rounded corners for the canvas */
+            backdrop-filter: blur(5px); /* Increased blur for frosted glass effect */
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5); /* Darker shadow for depth */
+        }
+    </style>
+</head>
+<body>
+    <div id="header">
+        <h1>Equity Sentiment Analysis</h1>
+    </div>
+
+    <div id="gaugeContainer" style="margin-top: 80px;"> <!-- Margin to avoid overlap with header -->
+        <h2>Sentiment Score for "<span id="queryText"></span>"</h2> <!-- Heading for gauge -->
+        <canvas id="gaugeCanvas" width="400" height="400"></canvas> <!-- Increased size of canvas -->
+    </div>
+    
+    <div id="tweetsContainer">
+        <h2>Sample Tweets for "<span id="queryTextTweets"></span>"</h2> <!-- Heading for tweets -->
+        <div id="tweets"></div>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            const symbol = getQuerySymbol(); // Get the stock symbol from the URL
+            $('#queryText').text(symbol); // Update the symbol text in the sentiment score header
+            $('#queryTextTweets').text(symbol); // Update the symbol text in the tweets header
+            fetchTweets(symbol); // Fetch tweets related to the stock symbol
+            drawGauge({ 'Positive': 0, 'Neutral': 0, 'Negative': 0 }); // Initial gauge draw
+        });
+
+        function getQuerySymbol() {
+            const urlSegments = window.location.pathname.split('/');
+            return urlSegments[urlSegments.length - 1] || 'AAPL'; // Get the last part of the URL for the stock symbol, default to 'AAPL'
+        }
+
+        async function fetchTweets(symbol) {
+            const response = await fetch(`/api/tweets?symbol=${symbol}`);
+            const tweets = await response.json();
+
+            let tweetsDiv = $('#tweets');
+            tweetsDiv.empty(); // Clear previous tweets
+
+            // Display each tweet and duplicate for scrolling
+            tweets.tweets.forEach(function(tweet) {
+                tweetsDiv.append(`<p>${tweet.text}</p>`);
+            });
+
+            // Duplicate tweets for seamless scrolling
+            tweets.tweets.forEach(function(tweet) {
+                tweetsDiv.append(`<p>${tweet.text}</p>`); // Append again for looping effect
+            });
+
+            const tweetHeight = 40; // Adjust this based on your font size
+            const totalHeight = tweets.tweets.length * tweetHeight;
+
+            // Set height and animation duration based on total tweets
+            tweetsDiv.css({
+                height: totalHeight + 'px', // Set height based on total tweets
+                animation: `scroll ${(totalHeight / 40)}s linear infinite` // Speed of scrolling based on tweet height
+            });
+
+            drawGauge(tweets.sentiment_scores); // Pass sentiment scores to drawGauge
+        }
+
+        const canvas = document.getElementById('gaugeCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function drawGauge(sentimentScores) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = 150; // Adjusted for larger frame
+            const startAngle = Math.PI * 0.75; // Start angle (135 degrees)
+
+            // Background arc
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, startAngle, startAngle + Math.PI * 1.5);
+            ctx.lineWidth = 20;
+            ctx.strokeStyle = '#e0e0e0'; // Background color
+            ctx.stroke();
+
+            const positive = sentimentScores['Positive'] || 0;
+            const neutral = sentimentScores['Neutral'] || 0;
+            const negative = sentimentScores['Negative'] || 0;
+            const total = positive + neutral + negative;
+            const score = total > 0 ? ((2 * positive - negative * 0.05) / total) * 100 : 0; // Calculate score safely
+
+            // Draw filled arc segments based on value
+            drawFilledArcSegment(startAngle, 35, 35, '#ff0000', 'Bearish', centerX, centerY); // Red for 0 to 35%
+            drawFilledArcSegment(startAngle + (Math.PI * 1.5 * (35 / 100)), 65, 30, '#ffc107', 'Neutral', centerX, centerY); // Yellow for 35 to 65%
+            drawFilledArcSegment(startAngle + (Math.PI * 1.5 * (65 / 100)), 100, 35, '#28a745', 'Bullish', centerX, centerY); // Green for 65 to 100%
+
+            // Draw the needle resembling a speedometer arrow
+            drawNeedle(centerX, centerY, score);
+
+            // Draw the sentiment score text
+            ctx.font = '30px Arial';
+            ctx.fillStyle = '#000';
+            ctx.textAlign = 'center';
+            ctx.fillText(`Sentiment Score: ${score.toFixed(2)}%`, centerX, centerY + 170); // Adjusted position for larger frame
+        }
+
+        function drawFilledArcSegment(startAngle, value, range, color, label, centerX, centerY) {
+            const angleEnd = startAngle + (Math.PI * 1.5) * (Math.min(value, range) / 100);
+
+            // Draw the segment
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 160, startAngle, angleEnd); // Segment radius
+            ctx.lineWidth = 20;
+            ctx.strokeStyle = color; // Segment color
+            ctx.stroke();
+
+            // Calculate the position for the label
+            const labelX = centerX + Math.cos((startAngle + angleEnd) / 2) * 110; // Adjusted for label position
+            const labelY = centerY + Math.sin((startAngle + angleEnd) / 2) * 110; // Adjusted for label position
+
+            // Draw the label
+            ctx.font = '14px Arial';
+            ctx.fillStyle = '#000';
+            ctx.textAlign = 'center';
+            ctx.fillText(label, labelX, labelY);
+        }
+
+        function drawNeedle(centerX, centerY, score) {
+            const angle = Math.PI * 0.75 + (Math.PI * 1.5 * (score / 100));
+
+            // Draw the needle
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.lineTo(centerX + Math.cos(angle) * 130, centerY + Math.sin(angle) * 130); // Length of needle
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#000'; // Needle color
+            ctx.stroke();
+        }
+    </script>
+</body>
+</html>
